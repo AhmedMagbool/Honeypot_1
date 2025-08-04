@@ -16,3 +16,4 @@ const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
 export const logRef = ref(db, "clone_access");
 export const pushLog = (data) => push(logRef, data);
+

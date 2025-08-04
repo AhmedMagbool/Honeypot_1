@@ -1,0 +1,177 @@
+<html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Honeypot System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      width: 100%;
+      max-width: 400px;
+      background: #fff;
+      padding: 30px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      border-radius: 10px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    input[type="email"],
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .links {
+      text-align: center;
+      margin-top: 15px;
+    }
+    .links a {
+      color: #007bff;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .hidden {
+      display: none;
+    }
+    .error {
+      color: red;
+      font-size: 0.9em;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .success {
+      color: green;
+      font-size: 0.9em;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="loginForm">
+      <h2>Login</h2>
+      <div id="loginMessage"></div>
+      <input type="email" id="loginEmail" placeholder="Email">
+      <input type="password" id="loginPassword" placeholder="Password">
+      <button onclick="handleLogin()">Login</button>
+      <div class="links">
+        <a onclick="showSection('signupForm')">Create New Account</a> 
+      </div>
+    </div>
+
+    <div id="signupForm" class="hidden">
+      <h2>Create Account</h2>
+      <div id="signupMessage"></div>
+      <input type="email" id="signupEmail" placeholder="Email">
+      <input type="password" id="signupPassword" placeholder="Password">
+      <button onclick="handleSignup()">Sign Up</button>
+      <div class="links">
+        <a onclick="showSection('loginForm')">Back to Login</a>
+      </div>
+    </div>
+
+    <div id="forgotForm" class="hidden">
+      <h2>Reset Password</h2>
+      <div id="forgotMessage"></div>
+      <input type="email" id="resetEmail" placeholder="Email">
+      <button onclick="handleReset()">Send Code</button>
+      <div class="links">
+        <a onclick="showSection('loginForm')">Back to Login</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let loginAttempts = 0;
+    let firstAttemptTime = null;
+
+    function showSection(id) {
+      document.getElementById("loginForm").classList.add("hidden");
+      document.getElementById("signupForm").classList.add("hidden");
+      document.getElementById("forgotForm").classList.add("hidden");
+      document.getElementById(id).classList.remove("hidden");
+      clearMessages();
+    }
+
+    function clearMessages() {
+      document.getElementById("loginMessage").innerHTML = "";
+      document.getElementById("signupMessage").innerHTML = "";
+      document.getElementById("forgotMessage").innerHTML = "";
+    }
+
+    function handleLogin() {
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+      const storedPassword = localStorage.getItem(email);
+      const currentTime = new Date().getTime();
+
+      if (!firstAttemptTime) firstAttemptTime = currentTime;
+
+      if (currentTime - firstAttemptTime < 60000) {
+        loginAttempts++;
+      } else {
+        loginAttempts = 1;
+        firstAttemptTime = currentTime;
+      }
+
+      if (email && password) {
+        if (storedPassword === password) {
+          document.getElementById("loginMessage").innerHTML = "<div class='success'>Login successful</div>";
+          setTimeout(() => window.location.href = "real-bank.html", 1000);
+        } else {
+          document.getElementById("loginMessage").innerHTML = "<div class='error'>Incorrect email or password.</div>";
+          if (loginAttempts >= 3) {
+            setTimeout(() => window.location.href = "honypot.html", 1000);
+          }
+        }
+      }
+    }
+
+    function handleSignup() {
+      const email = document.getElementById("signupEmail").value;
+      const password = document.getElementById("signupPassword").value;
+      if (localStorage.getItem(email)) {
+        document.getElementById("signupMessage").innerHTML = "<div class='error'>Email already exists.</div>";
+      } else {
+        localStorage.setItem(email, password);
+        document.getElementById("signupMessage").innerHTML = "<div class='success'>Account created successfully.</div>";
+      }
+    }
+
+    function handleReset() {
+      const email = document.getElementById("resetEmail").value;
+      if (localStorage.getItem(email)) {
+        document.getElementById("forgotMessage").innerHTML = "<div class='success'>Reset code sent (simulated).</div>";
+      } else {
+        document.getElementById("forgotMessage").innerHTML = "<div class='error'>Email not found.</div>";
+      }
+    }
+  </script>
+
+
+</body></html>

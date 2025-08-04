@@ -1,4 +1,3 @@
-# honeypot.py
 import socket
 import threading
 import datetime
@@ -8,6 +7,7 @@ import requests
 import http.server
 import socketserver
 import os
+import re
 
 # ------------------------ CONFIGURATION ------------------------ #
 LOG_FILE = "honeypot_logs.txt"
@@ -18,7 +18,7 @@ REDIRECT_URL = "https://secure-national-bank-clone.vercel.app"
 
 # Gmail alert settings
 FROM_EMAIL = "aalageely@gmail.com"
-TO_EMAIL = "aalageely@gmail.com"
+TO_EMAIL = "Danaalageely88@gmail.com"
 APP_PASSWORD = "mkbc nxsa upag uqzs"
 
 # Telegram alert settings
@@ -28,9 +28,25 @@ CHAT_ID = "1919975349"
 # Firebase settings
 FIREBASE_URL = "https://honeypot-715b9-default-rtdb.firebaseio.com/honeypot_logs.json"
 
-# ------------------------ ALERT FUNCTIONS ------------------------ #
+# ------------------------ ATTACK CLASSIFICATION ------------------------ #
+def classify_attack(payload):
+    signatures = {
+        "Brute Force": [r"password", r"login", r"root", r"admin"],
+        "Port Scan": [r"nmap", r"scan", r"NULL", r"\\x00", r"libssh"],
+        "Command Injection": [r";", r"\\|\\|", r"&&", r"/bin/sh", r"bash", r"wget", r"curl"],
+        "SQL Injection": [r"' OR 1=1", r"SELECT .* FROM", r"UNION SELECT"],
+        "Malware Drop": [r".exe", r".sh", r"powershell", r"python", r"base64"],
+        "Reconnaissance": [r"whoami", r"uname", r"id", r"ifconfig", r"netstat"]
+    }
 
-def send_email_alert(ip, port, data):
+    for category, patterns in signatures.items():
+        for pattern in patterns:
+            if re.search(pattern, payload, re.IGNORECASE):
+                return category
+    return "Unclassified"
+
+# ------------------------ ALERT FUNCTIONS ------------------------ #
+def send_email_alert(ip, port, data, category):
     msg = EmailMessage()
     msg["Subject"] = "🚨 Honeypot Alert - Connection Detected"
     msg["From"] = FROM_EMAIL
@@ -40,8 +56,9 @@ def send_email_alert(ip, port, data):
 
 📍 IP Address: {ip}
 📌 Port: {port}
+🧾 Category: {category}
 🕒 Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-🧾 Payload: {data.strip()}
+📥 Payload: {data.strip()}
     """)
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
@@ -51,13 +68,14 @@ def send_email_alert(ip, port, data):
     except Exception as e:
         print(f"[✖] Failed to send email: {e}")
 
-def send_telegram_alert(ip, port, data):
+def send_telegram_alert(ip, port, data, category):
     message = f"""🚨 *Honeypot Alert Detected*
 
 🔍 *IP:* `{ip}`
 🔌 *Port:* `{port}`
+🧾 *Category:* `{category}`
 🕒 *Time:* `{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`
-🧾 *Payload:* `{data.strip()}`"""
+📥 *Payload:* `{data.strip()}`"""
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
@@ -75,10 +93,11 @@ def send_telegram_alert(ip, port, data):
     except Exception as e:
         print(f"[✖] Telegram error: {e}")
 
-def send_to_firebase(ip, port, data):
+def send_to_firebase(ip, port, data, category):
     payload = {
         "ip": ip,
         "port": port,
+        "category": category,
         "time": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "data": data.strip()
     }
@@ -92,27 +111,27 @@ def send_to_firebase(ip, port, data):
         print(f"[✖] Firebase error: {e}")
 
 # ------------------------ LOGGING FUNCTION ------------------------ #
-
 def log_attempt(addr, data):
+    category = classify_attack(data)
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    log = f"[{timestamp}] Connection from {addr[0]}:{addr[1]} - Category: {category} - Data: {data.strip()}"
+    print(log)
+
     with open(LOG_FILE, "a") as f:
-        log = f"[{datetime.datetime.now()}] Connection from {addr[0]}:{addr[1]} - Data: {data.strip()}\n"
-        f.write(log)
-        print(log.strip())
-    send_email_alert(addr[0], addr[1], data)
-    send_telegram_alert(addr[0], addr[1], data)
-    send_to_firebase(addr[0], addr[1], data)
+        f.write(log + "\\n")
+
+    send_email_alert(addr[0], addr[1], data, category)
+    send_telegram_alert(addr[0], addr[1], data, category)
+    send_to_firebase(addr[0], addr[1], data, category)
 
 # ------------------------ NMAP DETECTION ------------------------ #
-
 def is_nmap_probe(data):
-    suspicious_signatures = [
-        "nmap", "libssh", "masscan", "scan", "NULL", "\x00"
-    ]
+    suspicious_signatures = ["nmap", "libssh", "masscan", "scan", "NULL", "\\x00"]
     lower_data = data.lower()
     return any(sig in lower_data for sig in suspicious_signatures)
 
 # ------------------------ HTTP REDIRECTION SERVER ------------------------ #
-
 class RedirectHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         self.send_response(302)
@@ -120,10 +139,9 @@ class RedirectHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
 # ------------------------ CLIENT HANDLER ------------------------ #
-
 def handle_client(client_socket, addr):
     try:
-        client_socket.sendall(b"SSH-2.0-OpenSSH_7.9p1 Debian\n")
+        client_socket.sendall(b"SSH-2.0-OpenSSH_7.9p1 Debian\\n")
         data = client_socket.recv(1024)
         if not data:
             data = b"NO DATA RECEIVED"
@@ -139,19 +157,16 @@ def handle_client(client_socket, addr):
         client_socket.close()
 
 # ------------------------ MAIN HONEYPOT ------------------------ #
-
 def start_honeypot():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((HOST, PORT))
     server.listen(5)
     print(f"[+] SSH Honeypot running on port {PORT}...")
-
     while True:
         client, addr = server.accept()
         threading.Thread(target=handle_client, args=(client, addr)).start()
 
 # ------------------------ MAIN REDIRECTOR ------------------------ #
-
 def start_redirector():
     handler = RedirectHandler
     httpd = socketserver.TCPServer((HOST, REDIRECT_PORT), handler)
@@ -159,7 +174,6 @@ def start_redirector():
     httpd.serve_forever()
 
 # ------------------------ MAIN ENTRY POINT ------------------------ #
-
 if __name__ == "__main__":
     threading.Thread(target=start_redirector, daemon=True).start()
     start_honeypot()
